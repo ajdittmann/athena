@@ -148,7 +148,7 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
           std::cout
               << "### Warning in Reconstruction constructor" << std::endl
               << "Selected time/xorder=" << input_recon << " flux calculations"
-              << " require a uniform, Carteisan mesh with" << std::endl
+              << " require a uniform, Cartesian mesh with" << std::endl
               << "square cells (dx1f=dx2f=dx3f). "
               << "Change mesh limits and/or number of cells for equal spacings\n"
               << "Current values are:" << std::endl
@@ -303,7 +303,7 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
 
     // Greedily allocate tiny 4x4 matrix + 4x1 vectors (RHS, solution, and permutation
     // indices) in case PPMx1 and/or PPMx2 require them for computing the curvilinear
-    // coorddinate reconstruction weights. Same data structures are reused at each spatial
+    // coordinate reconstruction weights. Same data structures are reused at each spatial
     // index (i or j) and for both PPMx1 and PPMx2 weight calculations:
     constexpr int kNrows = 4;       // = [i-i_L, i+i_R] stencil of reconstruction
     constexpr int kNcols = 4;       // = [0, p-1], p=order of reconstruction
@@ -331,9 +331,9 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
               // Mignone equation 23: simplification of entries in \beta matrix when
               // Jacobian is a simple power of the coordinate, e.g. radial coordinate:
               Real coeff = (m_coord + 1.0)/(col + m_coord + 1.0);
-              int pow_num = col + m_coord + 1;
-              int pow_denom = m_coord + 1;
-              int s = row - kNrows/2;  // rescale index from -2 to +1
+              const int pow_num = col + m_coord + 1;
+              const int pow_denom = m_coord + 1;
+              const int s = row - kNrows/2;  // rescale index from -2 to +1
               // initializing transpose:
               beta[col][row] =
                   coeff*(
@@ -382,7 +382,7 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
           }
         } else { // if (uniform[X1DIR]) {
           // Mignone section 2.2: conservative reconstruction from volume averages
-          Real io = std::abs(i - pmy_block_->is);  // il=is-1 ---> io = 2
+          const Real io = std::abs(i - pmy_block_->is);  // il=is-1 ---> io = 2
           // Notes:
           // - io (i offset) must be floating-point, not integer type. io^4 and io^8 terms
           // in below lines quickly cause overflows of 32-bit and 64-bit integer limtis in
@@ -390,7 +390,7 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
           // - io=1 should correspond to "is" (first real cell face)
           // - take absolute value to handle lower x1 ghost zone cell faces properly
           if (std::strcmp(COORDINATE_SYSTEM, "cylindrical") == 0) {
-            Real delta = 120.0*SQR(SQR(io)) - 360.0*SQR(io) + 96.0;
+            const Real delta = 120.0*SQR(SQR(io)) - 360.0*SQR(io) + 96.0;
             // Mignone equation B.9:
             // w_im1
             c1i(i) = -(2.0*io - 3.0)*(5.0*SQR(io)*io + 8.0*SQR(io) - 3.0*io - 4.0)/delta;
@@ -404,7 +404,7 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
             c4i(i) = -(2.0*io + 3.0)*(5.0*SQR(io)*io - 8.0*SQR(io) - 3.0*io + 4.0)/delta;
           } else { // if (std::strcmp(COORDINATE_SYSTEM, "spherical_polar") == 0) {
             // Mignone equation B.14:
-            Real delta = 36.0*(15.0*SQR(SQR(SQR(io))) - 85.0*SQR(SQR(io))*SQR(io)
+            const Real delta = 36.0*(15.0*SQR(SQR(SQR(io))) - 85.0*SQR(SQR(io))*SQR(io)
                                + 150.0*SQR(SQR(io)) - 60.0*SQR(io) + 16);
             c1i(i) = -(3.0*SQR(io) - 9.0*io + 7.0)*(
                 15.0*SQR(SQR(io))*SQR(io) + 48.0*SQR(SQR(io))*io
@@ -433,12 +433,10 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
       // for nonuniform and uniform radial mesh spacings.
       for (int i=(pmb->is)-1; i<=(pmb->ie)+1; ++i) {
         Real h_plus, h_minus;
-        Real& dx_i   = pco->dx1f(i);
-        Real& xv_i   = pco->x1v(i);
+        const Real& dx_i   = pco->dx1f(i);
 
         // radius may beomce negative in the lower x1 ghost cells:
-        xv_i = 0.5*(pco->x1f(i+1) + pco->x1f(i));
-        xv_i = std::abs(xv_i);
+        const Real xv_i = std::abs(0.5*(pco->x1f(i+1) + pco->x1f(i)));
 
         if (std::strcmp(COORDINATE_SYSTEM, "cylindrical") == 0) {
           // cylindrical radial coordinate
@@ -466,7 +464,7 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
       if (uniform[X1DIR]) {
 #pragma omp simd
         for (int i=(pmb->is)-NGHOST; i<=(pmb->ie)+NGHOST; ++i) {
-          // reducing general formula in ppm.cpp corresonds to Mignone eq B.4 weights:
+          // reducing general formula in ppm.cpp corresponds to Mignone eq B.4 weights:
           // (-1/12, 7/12, 7/12, -1/12)
           c1i(i) = 0.5;
           c2i(i) = 0.5;
@@ -475,21 +473,21 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
           c5i(i) = 1.0/6.0;
           c6i(i) = -1.0/6.0;
         }
-      } else { // coeffcients along Cartesian-like x1 with nonuniform mesh spacing
+      } else { // coefficients along Cartesian-like x1 with nonuniform mesh spacing
 #pragma omp simd
         for (int i=(pmb->is)-NGHOST+1; i<=(pmb->ie)+NGHOST-1; ++i) {
-          Real& dx_im1 = pco->dx1f(i-1);
-          Real& dx_i   = pco->dx1f(i  );
-          Real& dx_ip1 = pco->dx1f(i+1);
-          Real qe = dx_i/(dx_im1 + dx_i + dx_ip1);       // Outermost coeff in CW eq 1.7
+          const Real& dx_im1 = pco->dx1f(i-1);
+          const Real& dx_i   = pco->dx1f(i  );
+          const Real& dx_ip1 = pco->dx1f(i+1);
+          const Real qe = dx_i/(dx_im1 + dx_i + dx_ip1);  // Outermost coeff in CW eq 1.7
           c1i(i) = qe*(2.0*dx_im1+dx_i)/(dx_ip1 + dx_i); // First term in CW eq 1.7
           c2i(i) = qe*(2.0*dx_ip1+dx_i)/(dx_im1 + dx_i); // Second term in CW eq 1.7
           if (i > (pmb->is)-NGHOST+1) {  // c3-c6 are not computed in first iteration
-            Real& dx_im2 = pco->dx1f(i-2);
-            Real qa = dx_im2 + dx_im1 + dx_i + dx_ip1;
+            const Real& dx_im2 = pco->dx1f(i-2);
+            const Real qa = dx_im2 + dx_im1 + dx_i + dx_ip1;
             Real qb = dx_im1/(dx_im1 + dx_i);
-            Real qc = (dx_im2 + dx_im1)/(2.0*dx_im1 + dx_i);
-            Real qd = (dx_ip1 + dx_i)/(2.0*dx_i + dx_im1);
+            const Real qc = (dx_im2 + dx_im1)/(2.0*dx_im1 + dx_i);
+            const Real qd = (dx_ip1 + dx_i)/(2.0*dx_i + dx_im1);
             qb = qb + 2.0*dx_i*qb/qa*(qc-qd);
             c3i(i) = 1.0 - qb;
             c4i(i) = qb;
@@ -523,8 +521,8 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
           // spacings in order to precompute reconstruction weights
           for (int row=0; row<kNrows; row++) {
             b_rhs[row] = std::pow(pco->x2f(j), row);
-            int s = row - kNrows/2;  // rescale index from -2 to +1
-            Real coeff = 1.0/(std::cos(pco->x2f(j+s)) - std::cos(pco->x2f(j+s+1)));
+            const int s = row - kNrows/2;  // rescale index from -2 to +1
+            const Real coeff = 1.0/(std::cos(pco->x2f(j+s)) - std::cos(pco->x2f(j+s+1)));
             for (int col=0; col<kNcols; col++) {
               beta[col][row] = 0.0;
               for (int k=0; k<=col; k++) {
@@ -564,14 +562,14 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
           // corrections to PPMx2 only for spherical-polar coordinates
           // if (std::strcmp(COORDINATE_SYSTEM, "spherical_polar") == 0) {
           Real h_plus, h_minus;
-          // note: x2 may become negative at lower boundary ghost cells and may exceedc
+          // note: x2 may become negative at lower boundary ghost cells and may exceed
           // pi at upper boundary ghost cells
           // TODO(felker): may need to take abs() or change signs of terms in ghost zone
-          Real& dx_j   = pco->dx2f(j);
-          Real& xf_j   = pco->x2f(j);
-          Real& xf_jp1   = pco->x2f(j+1);
-          Real dmu = std::cos(xf_j) - std::cos(xf_jp1);
-          Real dmu_tilde = std::sin(xf_j) - std::sin(xf_jp1);
+          const Real& dx_j   = pco->dx2f(j);
+          const Real& xf_j   = pco->x2f(j);
+          const Real& xf_jp1   = pco->x2f(j+1);
+          const Real dmu = std::cos(xf_j) - std::cos(xf_jp1);
+          const Real dmu_tilde = std::sin(xf_j) - std::sin(xf_jp1);
           h_plus = (dx_j*(dmu_tilde + dx_j*std::cos(xf_jp1)))/(
               dx_j*(std::sin(xf_j) + std::sin(xf_jp1)) - 2.0*dmu);
           h_minus = -(dx_j*(dmu_tilde + dx_j*std::cos(xf_j)))/(
@@ -600,22 +598,22 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
             c5j(j) = 1.0/6.0;
             c6j(j) = -1.0/6.0;
           }
-        } else { // coeffcients along Cartesian-like x2 with nonuniform mesh spacing
+        } else { // coefficients along Cartesian-like x2 with nonuniform mesh spacing
 #pragma omp simd
           for (int j=(pmb->js)-NGHOST+2; j<=(pmb->je)+NGHOST-1; ++j) {
-            Real& dx_jm1 = pco->dx2f(j-1);
-            Real& dx_j   = pco->dx2f(j  );
-            Real& dx_jp1 = pco->dx2f(j+1);
-            Real qe = dx_j/(dx_jm1 + dx_j + dx_jp1);       // Outermost coeff in CW eq 1.7
+            const Real& dx_jm1 = pco->dx2f(j-1);
+            const Real& dx_j   = pco->dx2f(j  );
+            const Real& dx_jp1 = pco->dx2f(j+1);
+            const Real qe = dx_j/(dx_jm1 + dx_j + dx_jp1); // Outermost coeff in CW eq1.7
             c1j(j) = qe*(2.0*dx_jm1 + dx_j)/(dx_jp1 + dx_j); // First term in CW eq 1.7
             c2j(j) = qe*(2.0*dx_jp1 + dx_j)/(dx_jm1 + dx_j); // Second term in CW eq 1.7
 
             if (j > (pmb->js)-NGHOST+1) {  // c3-c6 are not computed in first iteration
-              Real& dx_jm2 = pco->dx2f(j-2);
-              Real qa = dx_jm2 + dx_jm1 + dx_j + dx_jp1;
+              const Real& dx_jm2 = pco->dx2f(j-2);
+              const Real qa = dx_jm2 + dx_jm1 + dx_j + dx_jp1;
               Real qb = dx_jm1/(dx_jm1 + dx_j);
-              Real qc = (dx_jm2 + dx_jm1)/(2.0*dx_jm1 + dx_j);
-              Real qd = (dx_jp1 + dx_j)/(2.0*dx_j + dx_jm1);
+              const Real qc = (dx_jm2 + dx_jm1)/(2.0*dx_jm1 + dx_j);
+              const Real qd = (dx_jp1 + dx_j)/(2.0*dx_j + dx_jm1);
               qb = qb + 2.0*dx_j*qb/qa*(qc-qd);
               c3j(j) = 1.0 - qb;
               c4j(j) = qb;
@@ -639,7 +637,7 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
       hplus_ratio_k.NewAthenaArray(nc3);
       hminus_ratio_k.NewAthenaArray(nc3);
 
-      // reconstruction coeffiencients in x3, Cartesian-like coordinate:
+      // reconstruction coefficients in x3, Cartesian-like coordinate:
       if (uniform[X3DIR]) { // uniform spacing
 #pragma omp simd
         for (int k=(pmb->ks)-NGHOST; k<=(pmb->ke)+NGHOST; ++k) {
@@ -654,19 +652,19 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
       } else { // nonuniform spacing
 #pragma omp simd
         for (int k=(pmb->ks)-NGHOST+2; k<=(pmb->ke)+NGHOST-1; ++k) {
-          Real& dx_km1 = pco->dx3f(k-1);
-          Real& dx_k   = pco->dx3f(k  );
-          Real& dx_kp1 = pco->dx3f(k+1);
-          Real qe = dx_k/(dx_km1 + dx_k + dx_kp1);       // Outermost coeff in CW eq 1.7
+          const Real& dx_km1 = pco->dx3f(k-1);
+          const Real& dx_k   = pco->dx3f(k  );
+          const Real& dx_kp1 = pco->dx3f(k+1);
+          const Real qe = dx_k/(dx_km1 + dx_k + dx_kp1);  // Outermost coeff in CW eq 1.7
           c1k(k) = qe*(2.0*dx_km1+dx_k)/(dx_kp1 + dx_k); // First term in CW eq 1.7
           c2k(k) = qe*(2.0*dx_kp1+dx_k)/(dx_km1 + dx_k); // Second term in CW eq 1.7
 
           if (k > (pmb->ks)-NGHOST+1) {  // c3-c6 are not computed in first iteration
-            Real& dx_km2 = pco->dx3f(k-2);
-            Real qa = dx_km2 + dx_km1 + dx_k + dx_kp1;
+            const Real& dx_km2 = pco->dx3f(k-2);
+            const Real qa = dx_km2 + dx_km1 + dx_k + dx_kp1;
             Real qb = dx_km1/(dx_km1 + dx_k);
-            Real qc = (dx_km2 + dx_km1)/(2.0*dx_km1 + dx_k);
-            Real qd = (dx_kp1 + dx_k)/(2.0*dx_k + dx_km1);
+            const Real qc = (dx_km2 + dx_km1)/(2.0*dx_km1 + dx_k);
+            const Real qd = (dx_kp1 + dx_k)/(2.0*dx_k + dx_km1);
             qb = qb + 2.0*dx_k*qb/qa*(qc-qd);
             c3k(k) = 1.0 - qb;
             c4k(k) = qb;
@@ -779,7 +777,7 @@ int DoolittleLUPDecompose(Real **a, int n, int *pivot) {
     for (int j=i+1; j<n; j++) { // loop over rows; NR has the same approach as here
       // fill lower triangular matrix L elements at column "i":
       a[j][i] /= a[i][i];
-      // (Crout finds upper triangular matrix U elemens at row "i" in this step)
+      // (Crout finds upper triangular matrix U elements at row "i" in this step)
       for (int k=i+1; k<n; k++) // update remaining submatrix
         a[j][k] -= a[j][i]*a[i][k];
     }
